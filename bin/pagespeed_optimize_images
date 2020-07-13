@@ -1,0 +1,143 @@
+#!/bin/bash
+# @author: Hai Huynh
+# Please run this command on Ubuntu and root right for fully functional
+# Usage: ./bin/page_optimize_images.sh -t all -d pub/media
+
+set -e
+
+if [[ $EUID -ne 0 ]]; then
+   echo "Optimize: This script must be run as root"
+   exit 1
+fi
+
+MAGE_ROOT=$(pwd)
+MAGE_BIND="${MAGE_ROOT}/bin/magento"
+
+if [ ! -f "$MAGE_BIND" ]; then
+  echo "Optimize: Please run this command in Magento Root Folder !!!"
+  exit 1
+fi
+
+while getopts t:d: flag
+do
+    case "${flag}" in
+        t) TYPE=${OPTARG};;
+        d) DIR=${OPTARG};;
+    esac
+done
+
+if [ -z "$DIR" ]
+then
+    echo "Optimize: Please provide folder to optimize \"-d pub/media\" !!!"
+    exit 1
+fi
+
+
+MAGE_OPTIMIZE=("${MAGE_ROOT}/${DIR}")
+PACKAGES=("jpegoptim" "optipng")
+
+if [ ! -d "$MAGE_OPTIMIZE" ]; then
+  echo -e "Optimize: Folder ${MAGE_OPTIMIZE} not existed !!!\n"
+  exit 1
+fi
+
+case $TYPE in
+  jpegoptim)
+    ;;
+  optipng)
+    ;;
+  all)
+    ;;
+  *)
+    echo -e "Optimize: Please, provide optimize type (-t all | optipng | jpegoptim) ...\n"
+    exit 1;
+    ;;
+esac
+
+function command_existed() {
+    type "$1" &> /dev/null ;
+}
+
+function waiting() {
+    sleep 1;
+}
+
+function install() {
+    if ! command_existed "$1"
+    then
+        echo -e "Optimize: Installing ${1} ...\n"
+        waiting
+        {
+            apt-get install -y "$1"
+        } || {
+            echo -e "Optimize: Install ${1} failed!!!"
+            exit 1
+        }
+    else
+        echo -e "Optimize: ${1} ... passed\n"
+    fi
+}
+
+# By pass an argument as folder
+function run_jpegoptim() {
+    {
+        REAL_DIR=$(realpath "${1}")
+        echo -e "Optimize: Run jpegoptim in background. Run \"tail -f ./var/log/jpegoptim.log\" for detail\n"
+        waiting
+        nohup find "${REAL_DIR}" -type f \( -iname "*.jpg" -o -iname "*.jpeg" \) -exec jpegoptim -m100 -o -p {} \; &> ./var/log/jpegoptim.log &
+    } || {
+        echo -e "Optimize: run_jpegoptim in ${REAL_DIR} failed!!!\n"
+        return 0
+    }
+}
+
+# By pass an argument as folder
+function run_optipng() {
+    {
+        REAL_DIR=$(realpath "${1}")
+        echo -e "Optimize: Run optipng in background. Check \"tail -f ./var/log/optipng.log\" for detail\n"
+        waiting
+        nohup find "${REAL_DIR}" -type f -iname "*.png" -exec optipng -o7 {} \; &> ./var/log/optipng.log &
+    } || {
+        echo -e "Optimize: run_optipng in ${REAL_DIR} failed!!!\n"
+        return 0
+    }
+}
+
+
+echo -e "Optimize: Check packages installed ...\n"
+waiting
+# Let install pack
+
+# shellcheck disable=SC2068
+for p in ${PACKAGES[@]};
+do
+    install "${p}"
+done
+
+echo -e "Optimize: Start ..."
+waiting
+
+# Do optimize
+
+# shellcheck disable=SC2068
+for d in ${MAGE_OPTIMIZE[@]};
+do
+    if [ "$TYPE" == "all" ] || [ "$TYPE" == "jpegoptim" ]
+    then
+        echo -e "Optimize: Start jpegoptim\n"
+        waiting
+        run_jpegoptim "${d}"
+    fi
+
+    if [ "$TYPE" == "all" ] || [ "$TYPE" == "optipng" ]
+        then
+        echo -e "Optimize: Start optipng\n"
+        waiting
+        run_optipng "${d}"
+    fi
+done
+
+
+echo -e "Optimize: Finished"
+exit 0
