@@ -84,7 +84,7 @@ function run_jpegoptim() {
         REAL_DIR=$(realpath "${1}")
         echo -e "Optimize: Run jpegoptim in background. Run \"tail -f ./var/log/jpegoptim.log\" for detail\n"
         waiting
-        nohup find "${REAL_DIR}" -type f \( -iname "*.jpg" -o -iname "*.jpeg" \) -exec jpegoptim -m100 -o -p {} \; &> ./var/log/jpegoptim.log &
+        nohup find "${REAL_DIR}" -type f \( -iname "*.jpg" -o -iname "*.jpeg" \) -exec jpegoptim -m50 -o -p {} \; &> ./var/log/jpegoptim.log &
     } || {
         echo -e "Optimize: run_jpegoptim in ${REAL_DIR} failed!!!\n"
         return 0
